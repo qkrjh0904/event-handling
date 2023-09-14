@@ -1,6 +1,7 @@
 package com.event.domain.coupon.service;
 
 import com.event.db.entity.Coupon;
+import com.event.domain.coupon.facade.OptimisticLockCouponFacade;
 import com.event.domain.coupon.repository.CouponRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +23,10 @@ class CouponServiceTest {
     private CouponRepository couponRepository;
     @Autowired
     private CouponService couponService;
+    @Autowired
+    private PessimisticLockCouponService pessimisticLockCouponService;
+    @Autowired
+    private OptimisticLockCouponFacade optimisticLockCouponFacade;
 
     @BeforeEach
     void setUp() {
@@ -31,7 +36,7 @@ class CouponServiceTest {
 
     @AfterEach
     void tearDown() {
-        couponRepository.deleteAllInBatch();
+//        couponRepository.deleteAllInBatch();
     }
 
     @Test
@@ -69,6 +74,59 @@ class CouponServiceTest {
             executorService.submit(() -> {
                 try {
                     couponService.decrease(1L);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+        }
+
+        countDownLatch.await();
+
+        Coupon coupon = couponRepository.findById(1L).orElseThrow();
+
+        // then
+        assertThat(coupon.getQuantity()).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("PessimisticLock 사용")
+    public void decreaseAtTheSameTimeWithPessimisticLock() throws InterruptedException {
+        // when
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch countDownLatch = new CountDownLatch(100);
+
+        for (int i = 0; i < 100; ++i) {
+            executorService.submit(() -> {
+                try {
+                    pessimisticLockCouponService.decrease(1L);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+        }
+
+        countDownLatch.await();
+
+        Coupon coupon = couponRepository.findById(1L).orElseThrow();
+
+        // then
+        assertThat(coupon.getQuantity()).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("OptimisticLock 사용")
+    public void decreaseAtTheSameTimeWithOptimisticLock() throws InterruptedException {
+        // when
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch countDownLatch = new CountDownLatch(100);
+
+        for (int i = 0; i < 100; ++i) {
+            executorService.submit(() -> {
+                try {
+                    System.out.println(Thread.currentThread() + " : " + Thread.activeCount());
+                    optimisticLockCouponFacade.decrease(1L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 } finally {
                     countDownLatch.countDown();
                 }
