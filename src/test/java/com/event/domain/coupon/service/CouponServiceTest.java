@@ -3,6 +3,7 @@ package com.event.domain.coupon.service;
 import com.event.db.entity.Coupon;
 import com.event.domain.coupon.facade.LettuceLockCouponFacade;
 import com.event.domain.coupon.facade.OptimisticLockCouponFacade;
+import com.event.domain.coupon.facade.RedissonLockCouponFacade;
 import com.event.domain.coupon.repository.CouponRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +19,7 @@ import java.util.concurrent.Executors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class OptimisticLockCouponServiceTest {
+class CouponServiceTest {
 
     @Autowired
     private CouponRepository couponRepository;
@@ -30,6 +31,8 @@ class OptimisticLockCouponServiceTest {
     private OptimisticLockCouponFacade optimisticLockCouponFacade;
     @Autowired
     private LettuceLockCouponFacade lettuceLockCouponFacade;
+    @Autowired
+    private RedissonLockCouponFacade redissonLockCouponFacade;
 
     @BeforeEach
     void setUp() {
@@ -157,6 +160,31 @@ class OptimisticLockCouponServiceTest {
                     lettuceLockCouponFacade.decrease(1L);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+        }
+
+        countDownLatch.await();
+
+        Coupon coupon = couponRepository.findById(1L).orElseThrow();
+
+        // then
+        assertThat(coupon.getQuantity()).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("Redisson 사용")
+    public void decreaseAtTheSameTimeWithRedissonLock() throws InterruptedException {
+        // when
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch countDownLatch = new CountDownLatch(100);
+
+        for (int i = 0; i < 100; ++i) {
+            executorService.submit(() -> {
+                try {
+                    redissonLockCouponFacade.decrease(1L);
                 } finally {
                     countDownLatch.countDown();
                 }
