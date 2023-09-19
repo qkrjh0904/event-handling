@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class CouponService {
+public class OptimisticLockCouponService {
 
     private final CouponRepository couponRepository;
 
     public void decrease(Long couponId) {
         // 쿠폰 ID 기준으로 쿠폰 조회
-        Coupon coupon = couponRepository.findById(couponId).orElseThrow();
+        Coupon coupon = couponRepository.findByIdWithOptimisticLock(couponId);
 
         // 재고 감소 시키기
         coupon.decrease();

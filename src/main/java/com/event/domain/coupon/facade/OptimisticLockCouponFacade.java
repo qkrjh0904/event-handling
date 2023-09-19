@@ -1,6 +1,6 @@
 package com.event.domain.coupon.facade;
 
-import com.event.domain.coupon.service.CouponService;
+import com.event.domain.coupon.service.OptimisticLockCouponService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -8,12 +8,12 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class OptimisticLockCouponFacade {
 
-    private final CouponService couponService;
+    private final OptimisticLockCouponService optimisticLockCouponService;
 
     public void decrease(Long couponId) throws InterruptedException {
         while (true) {
             try {
-                couponService.decrease(couponId);
+                optimisticLockCouponService.decrease(couponId);
                 break;
             } catch (Exception e){
                 System.out.println("대기중");

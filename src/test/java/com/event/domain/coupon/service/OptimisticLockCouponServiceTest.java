@@ -1,6 +1,7 @@
 package com.event.domain.coupon.service;
 
 import com.event.db.entity.Coupon;
+import com.event.domain.coupon.facade.LettuceLockCouponFacade;
 import com.event.domain.coupon.facade.OptimisticLockCouponFacade;
 import com.event.domain.coupon.repository.CouponRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -17,16 +18,18 @@ import java.util.concurrent.Executors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class SynchronizedCouponServiceTest {
+class OptimisticLockCouponServiceTest {
 
     @Autowired
     private CouponRepository couponRepository;
     @Autowired
     private SynchronizedCouponService synchronizedCouponService;
     @Autowired
+    private PessimisticLockCouponService pessimisticLockCouponService;
+    @Autowired
     private OptimisticLockCouponFacade optimisticLockCouponFacade;
     @Autowired
-    private CouponService couponService;
+    private LettuceLockCouponFacade lettuceLockCouponFacade;
 
     @BeforeEach
     void setUp() {
@@ -36,7 +39,7 @@ class SynchronizedCouponServiceTest {
 
     @AfterEach
     void tearDown() {
-//        couponRepository.deleteAllInBatch();
+        couponRepository.deleteAllInBatch();
     }
 
     @Test
@@ -98,7 +101,7 @@ class SynchronizedCouponServiceTest {
         for (int i = 0; i < 100; ++i) {
             executorService.submit(() -> {
                 try {
-                    couponService.decrease(1L);
+                    pessimisticLockCouponService.decrease(1L);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -141,5 +144,30 @@ class SynchronizedCouponServiceTest {
         assertThat(coupon.getQuantity()).isEqualTo(0L);
     }
 
+    @Test
+    @DisplayName("LettuceLock 사용")
+    public void decreaseAtTheSameTimeWithLettuceLock() throws InterruptedException {
+        // when
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch countDownLatch = new CountDownLatch(100);
 
+        for (int i = 0; i < 100; ++i) {
+            executorService.submit(() -> {
+                try {
+                    lettuceLockCouponFacade.decrease(1L);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+        }
+
+        countDownLatch.await();
+
+        Coupon coupon = couponRepository.findById(1L).orElseThrow();
+
+        // then
+        assertThat(coupon.getQuantity()).isEqualTo(0L);
+    }
 }
