@@ -17,16 +17,16 @@ import java.util.concurrent.Executors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-class CouponServiceTest {
+class SynchronizedCouponServiceTest {
 
     @Autowired
     private CouponRepository couponRepository;
     @Autowired
-    private CouponService couponService;
-    @Autowired
-    private PessimisticLockCouponService pessimisticLockCouponService;
+    private SynchronizedCouponService synchronizedCouponService;
     @Autowired
     private OptimisticLockCouponFacade optimisticLockCouponFacade;
+    @Autowired
+    private CouponService couponService;
 
     @BeforeEach
     void setUp() {
@@ -43,7 +43,7 @@ class CouponServiceTest {
     @DisplayName("쿠폰 하나씩 감소 시키기")
     public void decreaseOneCoupon() {
         // when
-        couponService.decrease(1L);
+        synchronizedCouponService.decrease(1L);
         Coupon coupon = couponRepository.findById(1L).orElseThrow();
 
         // then
@@ -55,7 +55,7 @@ class CouponServiceTest {
     public void decreaseOneHundredCoupon() {
         // when
         for (int i = 0; i < 100; i++) {
-            couponService.decrease(1L);
+            synchronizedCouponService.decrease(1L);
         }
         Coupon coupon = couponRepository.findById(1L).orElseThrow();
 
@@ -73,7 +73,7 @@ class CouponServiceTest {
         for (int i = 0; i < 100; ++i) {
             executorService.submit(() -> {
                 try {
-                    couponService.decrease(1L);
+                    synchronizedCouponService.decrease(1L);
                 } finally {
                     countDownLatch.countDown();
                 }
@@ -98,7 +98,7 @@ class CouponServiceTest {
         for (int i = 0; i < 100; ++i) {
             executorService.submit(() -> {
                 try {
-                    pessimisticLockCouponService.decrease(1L);
+                    couponService.decrease(1L);
                 } finally {
                     countDownLatch.countDown();
                 }
